@@ -1,30 +1,32 @@
 from ultralytics import YOLO
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from waitress import serve
 from PIL import Image
 import os
 
 # --------------------------------------
-# CONFIGURAÇÕES
+# APP
 # --------------------------------------
 
 app = Flask(__name__)
 
-# Habilita CORS apenas para o endpoint /detect
+# 🔥 CORS GLOBAL (obrigatório no Render)
 CORS(
     app,
-    resources={r"/detect": {"origins": "*"}}
+    origins="*",
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "OPTIONS"]
 )
+
+# --------------------------------------
+# MODELO
+# --------------------------------------
 
 MODEL_PATH = "best.pt"
 
-# Carrega o modelo uma única vez
 if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(
-        f"O arquivo '{MODEL_PATH}' não foi encontrado. "
-        f"Coloque um modelo YOLO válido na raiz do projeto."
-    )
+    raise FileNotFoundError(f"Modelo '{MODEL_PATH}' não encontrado.")
 
 model = YOLO(MODEL_PATH)
 
@@ -33,19 +35,17 @@ model = YOLO(MODEL_PATH)
 # --------------------------------------
 
 @app.route("/", methods=["GET"])
-def root():
+def health():
     return jsonify({
         "service": "Dentiscan AI",
-        "status": "running"
+        "status": "online"
     })
 
-@app.route("/detect", methods=["POST"])
+@app.route("/detect", methods=["POST", "OPTIONS"])
 def detect():
-    """
-    Recebe imagem via multipart/form-data
-    Retorna bounding boxes no formato:
-    [[x1, y1, x2, y2, label, confidence], ...]
-    """
+    # 🔥 Preflight (CORS)
+    if request.method == "OPTIONS":
+        return "", 200
 
     if "image_file" not in request.files:
         return jsonify({"error": "Nenhuma imagem enviada"}), 400
@@ -53,13 +53,13 @@ def detect():
     file = request.files["image_file"]
 
     try:
-        boxes = detect_objects_on_image(file.stream)
-        return jsonify(boxes)
+        results = detect_objects_on_image(file.stream)
+        return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 # --------------------------------------
-# FUNÇÃO PRINCIPAL DE DETECÇÃO
+# DETECÇÃO
 # --------------------------------------
 
 def detect_objects_on_image(buf):
@@ -71,9 +71,9 @@ def detect_objects_on_image(buf):
     output = []
 
     for box in result.boxes:
-        x1, y1, x2, y2 = [int(x) for x in box.xyxy[0].tolist()]
+        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
         class_id = int(box.cls[0])
-        prob = float(box.conf[0])
+        conf = float(box.conf[0])
 
         output.append([
             x1,
@@ -81,15 +81,14 @@ def detect_objects_on_image(buf):
             x2,
             y2,
             result.names[class_id],
-            f"{prob * 100:.2f}%"
+            f"{conf * 100:.2f}%"
         ])
 
     return output
 
 # --------------------------------------
-# INICIALIZAÇÃO DO SERVIDOR
+# SERVER
 # --------------------------------------
 
 if __name__ == "__main__":
-    print("Dentiscan AI rodando na porta 8080")
     serve(app, host="0.0.0.0", port=8080)
