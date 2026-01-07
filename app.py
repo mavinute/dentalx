@@ -1,10 +1,16 @@
 import os
-from flask import Flask, request, jsonify
+from flask import request, Flask, jsonify
+from flask_cors import CORS
 from ultralytics import YOLO
 from waitress import serve
 from PIL import Image
 
 app = Flask(__name__)
+
+CORS(
+    app,
+    resources={r"/detect": {"origins": "*"}},
+)
 
 MODEL_PATH = "./best.pt"
 model = YOLO(MODEL_PATH)
