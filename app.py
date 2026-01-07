@@ -44,7 +44,7 @@ def health():
 @app.route("/detect", methods=["POST", "OPTIONS"])
 def detect():
     # 🔥 Preflight (CORS)
-    if request.method == "OPTIONS":
+    if request.method == "POST":
         return "", 200
 
     if "image_file" not in request.files:
