@@ -11,7 +11,7 @@ import os
 
 app = Flask(__name__)
 
-# 🔥 CORS GLOBAL (obrigatório no Render)
+# CORS GLOBAL
 CORS(
     app,
     origins="*",
@@ -41,12 +41,8 @@ def health():
         "status": "online"
     })
 
-@app.route("/detect", methods=["POST", "OPTIONS"])
+@app.route("/detect", methods=["POST"])
 def detect():
-    # 🔥 Preflight (CORS)
-    if request.method == "POST":
-        return "", 200
-
     if "image_file" not in request.files:
         return jsonify({"error": "Nenhuma imagem enviada"}), 400
 
@@ -71,7 +67,7 @@ def detect_objects_on_image(buf):
     output = []
 
     for box in result.boxes:
-        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        x1, y1, x2, y2 = box.xyxy[0].tolist()
         class_id = int(box.cls[0])
         conf = float(box.conf[0])
 
@@ -81,7 +77,7 @@ def detect_objects_on_image(buf):
             x2,
             y2,
             result.names[class_id],
-            f"{conf * 100:.2f}%"
+            round(conf, 4)
         ])
 
     return output
